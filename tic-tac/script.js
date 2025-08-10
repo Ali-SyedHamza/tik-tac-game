@@ -6,15 +6,24 @@ var gameStarted = false;
 var playerXName = "";
 var playerOName = "";
 var winningCombo = [];
+var player1Color = "#000000";
+var player2Color = "#000000";
+
+var darkColorPairs = [
+  ["#1f2937", "#b91c1c"],
+  ["#111827", "#059669"],
+  ["#0f172a", "#9333ea"],
+  ["#18181b", "#dc2626"],
+  ["#121212", "#2563eb"]
+];
 
 function togglePlayerOInput() {
   var mode = document.getElementById("mode").value;
-  if (mode === "computer") {
-    document.getElementById("playerONameContainer").style.display = "none";
-  } else if (mode === "multiplayer") {
-    document.getElementById("playerONameContainer").style.display = "block";
+  var container = document.getElementById("playerONameContainer");
+  if (mode === "multiplayer") {
+    container.style.display = "block";
   } else {
-    document.getElementById("playerONameContainer").style.display = "none";
+    container.style.display = "none";
   }
 }
 
@@ -24,19 +33,30 @@ function startGame() {
   playerOName = document.getElementById("playerOName").value.trim();
 
   if (mode !== "computer" && mode !== "multiplayer") {
-    alert("Please select a valid game mode.");
+    Swal.fire("Error", "Please select a valid game mode.", "error");
     return;
   }
   if (playerXName === "") {
-    alert("Please enter Player X's name.");
+    Swal.fire("Error", "Please enter Player X's name.", "error");
     return;
   }
   if (mode === "multiplayer" && playerOName === "") {
-    alert("Please enter Player O's name.");
+    Swal.fire("Error", "Please enter Player O's name.", "error");
     return;
   }
+  if (mode === "computer") {
+    playerOName = "Computer";
+  }
 
-  vsComputer = (mode === "computer");
+  vsComputer = false;
+  if (mode === "computer") {
+    vsComputer = true;
+  }
+
+  var colors = darkColorPairs[Math.floor(Math.random() * darkColorPairs.length)];
+  player1Color = colors[0];
+  player2Color = colors[1];
+
   currentPlayer = "X";
   gameOver = false;
   gameStarted = true;
@@ -46,35 +66,46 @@ function startGame() {
   var allCells = document.getElementsByClassName("cell");
   for (var i = 0; i < allCells.length; i++) {
     allCells[i].textContent = "";
-    allCells[i].classList.remove("win-cell");
+    allCells[i].className = "cell";
+    allCells[i].style.color = "";
   }
 
   document.getElementById("setup").style.display = "none";
   document.getElementById("board").style.display = "grid";
-  document.getElementById("status").textContent = playerXName + "'s turn";
   document.getElementById("resetBtn").style.display = "inline-block";
+  document.getElementById("status").textContent = playerXName + "'s turn";
 }
 
 function play(index) {
-  if (!gameStarted || gameOver || cells[index] !== "") return;
+  if (!gameStarted || gameOver || cells[index] !== "") {
+    return;
+  }
 
   cells[index] = currentPlayer;
   var allCells = document.getElementsByClassName("cell");
   allCells[index].textContent = currentPlayer;
 
+  if (currentPlayer === "X") {
+    allCells[index].style.color = player1Color;
+  } else {
+    allCells[index].style.color = player2Color;
+  }
+
   if (checkWin()) {
     highlightWinningCells();
+    var winnerName;
     if (currentPlayer === "X") {
-      document.getElementById("status").textContent = playerXName + " wins!";
+      winnerName = playerXName;
     } else {
-      document.getElementById("status").textContent = playerOName + " wins!";
+      winnerName = playerOName;
     }
+    showResult(winnerName + " wins!");
     gameOver = true;
     return;
   }
 
   if (cells.indexOf("") === -1) {
-    document.getElementById("status").textContent = "It's a draw!";
+    showResult("It's a draw!");
     gameOver = true;
     return;
   }
@@ -88,62 +119,119 @@ function play(index) {
   if (vsComputer && currentPlayer === "O" && !gameOver) {
     computerMove();
   } else {
+    var nextPlayerName;
     if (currentPlayer === "X") {
-      document.getElementById("status").textContent = playerXName + "'s turn";
+      nextPlayerName = playerXName;
     } else {
-      document.getElementById("status").textContent = playerOName + "'s turn";
+      nextPlayerName = playerOName;
     }
+    document.getElementById("status").textContent = nextPlayerName + "'s turn";
   }
 }
 
 function computerMove() {
-  if (gameOver) return;
+  if (gameOver) {
+    return;
+  }
+
   var emptyCells = [];
   for (var i = 0; i < cells.length; i++) {
-    if (cells[i] === "") emptyCells.push(i);
+    if (cells[i] === "") {
+      emptyCells.push(i);
+    }
   }
-  if (emptyCells.length === 0) return;
 
-  var moveIndex = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+  if (emptyCells.length === 0) {
+    return;
+  }
+
+  var moveIndex = findBestMove("O");
+
+  if (moveIndex === -1) {
+    moveIndex = findBestMove("X");
+  }
+
+  if (moveIndex === -1) {
+    var randomIndex = Math.floor(Math.random() * emptyCells.length);
+    moveIndex = emptyCells[randomIndex];
+  }
 
   cells[moveIndex] = currentPlayer;
   var allCells = document.getElementsByClassName("cell");
   allCells[moveIndex].textContent = currentPlayer;
 
+  allCells[moveIndex].style.color = player2Color;
+
   if (checkWin()) {
     highlightWinningCells();
-    document.getElementById("status").textContent = playerOName + " wins!";
+    showResult(playerOName + " wins!");
     gameOver = true;
     return;
   }
 
   if (cells.indexOf("") === -1) {
-    document.getElementById("status").textContent = "It's a draw!";
+    showResult("It's a draw!");
     gameOver = true;
     return;
   }
 
-  currentPlayer = "X";
-  document.getElementById("status").textContent = playerXName + "'s turn";
+  if (currentPlayer === "X") {
+    currentPlayer = "O";
+  } else {
+    currentPlayer = "X";
+  }
+
+  var nextPlayerName;
+  if (currentPlayer === "X") {
+    nextPlayerName = playerXName;
+  } else {
+    nextPlayerName = playerOName;
+  }
+
+  document.getElementById("status").textContent = nextPlayerName + "'s turn";
+}
+
+function findBestMove(player) {
+  for (var i = 0; i < cells.length; i++) {
+    if (cells[i] === "") {
+      cells[i] = player;
+      var win = checkWinForPlayer(player);
+      cells[i] = "";
+      if (win) {
+        return i;
+      }
+    }
+  }
+  return -1;
 }
 
 function checkWin() {
+  return checkWinForPlayer(currentPlayer);
+}
+
+function checkWinForPlayer(player) {
   var wins = [
-    [0,1,2],[3,4,5],[6,7,8],
-    [0,3,6],[1,4,7],[2,5,8],
-    [0,4,8],[2,4,6]
+    [0, 1, 2],
+    [3, 4, 5],
+    [6, 7, 8],
+
+    [0, 3, 6],
+    [1, 4, 7],
+    [2, 5, 8],
+
+    [0, 4, 8],
+    [2, 4, 6],
   ];
 
   for (var i = 0; i < wins.length; i++) {
     var a = wins[i][0];
     var b = wins[i][1];
     var c = wins[i][2];
-    if (cells[a] !== "" && cells[a] === cells[b] && cells[b] === cells[c]) {
-      winningCombo = [a,b,c];
+    if (cells[a] === player && cells[b] === player && cells[c] === player) {
+      winningCombo = [a, b, c];
       return true;
     }
   }
-  winningCombo = [];
   return false;
 }
 
@@ -154,26 +242,54 @@ function highlightWinningCells() {
   }
 }
 
-function reset() {
-  gameStarted = false;
-  currentPlayer = "X";
-  gameOver = false;
+function showResult(message) {
+  document.getElementById("status").textContent = message;
+
+  setTimeout(function() {
+    Swal.fire({
+      title: message,
+      icon: (message.indexOf("wins") !== -1) ? "success" : (message.indexOf("draw") !== -1 ? "info" : "error"),
+      confirmButtonText: "Play Again"
+    }).then(function () {
+      reset();
+    });
+  }, 700);
+}
+
+function resetBoard() {
   cells = ["", "", "", "", "", "", "", "", ""];
   winningCombo = [];
-
   var allCells = document.getElementsByClassName("cell");
   for (var i = 0; i < allCells.length; i++) {
     allCells[i].textContent = "";
-    allCells[i].classList.remove("win-cell");
+    allCells[i].className = "cell";
+    allCells[i].style.color = "";
   }
+}
 
-  document.getElementById("status").textContent = "";
+function reset() {
+  gameOver = false;
+  gameStarted = false;
+  cells = ["", "", "", "", "", "", "", "", ""];
+  winningCombo = [];
+  currentPlayer = "X";
   document.getElementById("board").style.display = "none";
-  document.getElementById("setup").style.display = "block";
   document.getElementById("resetBtn").style.display = "none";
-
-  document.getElementById("mode").value = "";
+  document.getElementById("setup").style.display = "block";
+  document.getElementById("status").textContent = "";
+  var allCells = document.getElementsByClassName("cell");
+  for (var i = 0; i < allCells.length; i++) {
+    allCells[i].textContent = "";
+    allCells[i].className = "cell";
+    allCells[i].style.color = "";
+  }
+  document.getElementById("mode").value = "computer";
+  togglePlayerOInput();
   document.getElementById("playerXName").value = "";
   document.getElementById("playerOName").value = "";
-  togglePlayerOInput();
 }
+
+window.onload = function() {
+  document.getElementById("mode").value = "computer";
+  togglePlayerOInput();
+};
